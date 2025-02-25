@@ -149,7 +149,13 @@ usemice2 <- function(X , dataframe , data_cor, O, co_vars, ccm, long , m , use_c
     } else {
       micelog <- data.frame(colname = X, IMP$loggedEvents)
     }
-    output <- list(imputedcol = imputedcol , micelog = micelog)
+    pred_mat_out <- Pred_matrix[X,]
+    pred_mat_out[setdiff(colnames(dataframe), cluster)] <- 0
+    pred_mat_out <- pred_mat_out[colnames(dataframe)]
+    pred_mat_out <- matrix(pred_mat_out, nrow = 1, dimnames = list(X, names(pred_mat_out)))
+    output <- list(imputedcol = imputedcol , micelog = micelog, predrow = pred_mat_out)
+    iter <- as.integer(str_extract(X, "\\d+"))
+    if(iter %% 100 == 0) cat(iter, "\n")
     return(output)
 }
 
@@ -297,6 +303,7 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
                              )
         firstmids <- firstmice$imputedcol
         firstmicelog <- firstmice$micelog
+        firstpredrow <- firstmice$predrow
 
         #if , for whatever reason, there is only one metabolite with missingness, the next step will not be run
         #Otherwise the remaining variables will be imputed then merged with the togther and with the first variable
@@ -312,14 +319,24 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
                                   m=number_m,
                                   logScale = logScale,
                                   maxN_input = maxN_input)
+            cat("Finished imputation\n")
             allmids <- as.data.frame(do.call(cbind , lapply(allmice, '[[', "imputedcol")))
+            cat("allmids done\n")
             micelog <- do.call(rbind , lapply(allmice, '[[', "micelog"))
+            cat("micelog done\n")
+            predmat <- do.call(rbind , lapply(allmice, '[[', "predrow"))
 
             if (logScale) {
             allmids <- cbind(firstmids , exp(as.data.frame(do.call(cbind,lapply(colnames(allmids),
                                                                                 FUN =  unscale, d = allmids)))) )
             } else {allmids <- cbind(firstmids , allmids) }
             micelog <- rbind(firstmicelog , micelog)
+            predmat <- rbind(firstpredrow, predmat)
+            ccmpred <- matrix(0, nrow = ncol(DataFrame) - nrow(predmat), ncol = ncol(predmat))
+            rownames(ccmpred) <- setdiff(colnames(DataFrame), rownames(predmat))
+            colnames(ccmpred) <- colnames(predmat)
+            predmat <- rbind(predmat, ccmpred)[colnames(predmat),]
+            cat("Unscale complete\n")
         }    
         #only used if there is one variable with missing values
         else{
@@ -330,8 +347,8 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
         #output is un-scaled and exponentialized and returned as object
         if (logScale) {
             DataFrame[ccm] <-  exp(as.data.frame(do.call(cbind , lapply(ccm ,FUN =  unscale, d = DataFrame[ccm]))) )
-            } 
-            
+            }
+        cat("ccm unscale complete\n")
         
         #the other variables from ccm and group2 must be merged with the multiple imputation data generated 
         #duplicate the rows of other metabolies number_m times then bind them to the allmids data frame
@@ -339,6 +356,7 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
         othersDF <- DataFrame[c(ccm, invalids, group2)]
         #allmids  <- cbind(allmids ,othersDF[rep(1:nrow(DataFrame) , number_m+1) , colnames(othersDF) ])
         allmids[colnames(othersDF)] = othersDF[rep(1:nrow(DataFrame) , number_m+1) , colnames(othersDF) ]
+        cat("Bound others\n")
         
         #we also need to add the variables that will be used in the analysis model(s). if use_covars was set to TRUE, then
         #these variables would have been added in the usemice2 function. otherwise, it is done here
@@ -356,8 +374,12 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
         else {write.csv(allmids , file = paste(fileoutname , '_Imputed_Data_MICE','.csv', sep = '') , row.names = FALSE)}
         
         #convert allmids to a "mids" object, the object format required by the mice package to run the analysis
-        allmids <- as.mids(allmids)
+        source("as.mids.R")
+        pred_cols <- intersect(colnames(predmat), colnames(allmids))
+        predmat <- predmat[pred_cols, pred_cols]
+        allmids <- as.mids(allmids, predictorMatrix = predmat)
         allmids$loggedEvents <- micelog
+        cat("Converted to mids object\n")
 
         return(list(mids = allmids , Msummary = msummary , QS = QualSummary))
         }
