@@ -374,11 +374,15 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
         else {write.csv(allmids , file = paste(fileoutname , '_Imputed_Data_MICE','.csv', sep = '') , row.names = FALSE)}
         
         #convert allmids to a "mids" object, the object format required by the mice package to run the analysis
-        source("as.mids.R")
-        pred_cols <- intersect(colnames(predmat), colnames(allmids))
-        predmat <- predmat[pred_cols, pred_cols]
-        allmids <- as.mids(allmids, predictorMatrix = predmat)
-        allmids$loggedEvents <- micelog
+        if(exists("predmat")) {
+          source("as.mids.R")
+          pred_cols <- intersect(colnames(predmat), colnames(allmids))
+          predmat <- predmat[pred_cols, pred_cols]
+          allmids <- as.mids(allmids, predictorMatrix = predmat)
+          allmids$loggedEvents <- micelog
+        } else {
+          allmids <- as.mids(allmids)
+        }
         cat("Converted to mids object\n")
 
         return(list(mids = allmids , Msummary = msummary , QS = QualSummary))
