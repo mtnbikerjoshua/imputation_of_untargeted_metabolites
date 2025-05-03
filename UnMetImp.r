@@ -155,7 +155,8 @@ usemice2 <- function(X , dataframe , data_cor, O, co_vars, ccm, long , m , use_c
     pred_mat_out <- matrix(pred_mat_out, nrow = 1, dimnames = list(X, names(pred_mat_out)))
     output <- list(imputedcol = imputedcol , micelog = micelog, predrow = pred_mat_out)
     iter <- as.integer(str_extract(X, "\\d+"))
-    if(iter %% 100 == 0) cat(iter, "\n")
+    # if(iter %% 100 == 0) 
+      cat("\r", iter)
     return(output)
 }
 
@@ -176,7 +177,6 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
                  covars=NULL, fileoutname = NULL , use_covars = FALSE , logScale = TRUE , covars_only_mode = FALSE , maxN_input = 10) {
     require(mice)
     require(dplyr)
-    require(miceadds)
     
     #' UnMetImp: main function to impute the metabolites
     #'
@@ -371,7 +371,6 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
             predmat <- predmat[colnames(DataFrame), , drop = FALSE]
             
             cat("Unscale complete\n")
-            cat("Unscale complete\n")
         }    
         #only used if there is one variable with missing values
         else{
@@ -409,17 +408,16 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
         else {write.csv(allmids , file = paste(fileoutname , '_Imputed_Data_MICE','.csv', sep = '') , row.names = FALSE)}
         
         #convert allmids to a "mids" object, the object format required by the mice package to run the analysis
-        if(exists("predmat")) {
-          pred_cols <- intersect(colnames(predmat), colnames(allmids))
-          predmat <- predmat[pred_cols, pred_cols]
-          allmids <- as.mids(allmids, predictorMatrix = predmat)
-          allmids$loggedEvents <- micelog
-        } else {
-          allmids <- as.mids(allmids)
-        }
-        cat("Converted to mids object\n")
+        # if(exists("predmat")) {
+        #   pred_cols <- intersect(colnames(predmat), colnames(allmids))
+        #   predmat <- predmat[pred_cols, pred_cols]
+        #   allmids <- as.mids(allmids, predictorMatrix = predmat)
+        #   allmids$loggedEvents <- micelog
+        # } else {
+        #   allmids <- as.mids(allmids)
+        # }
 
-        return(list(mids = allmids , Msummary = msummary , QS = QualSummary))
+        return(list(mids = allmids , Msummary = msummary, QS = QualSummary, micelog = micelog))
         }
 
 }
