@@ -99,7 +99,7 @@ as.mids <- function(long, where = NULL, .imp = ".imp", .id = ".id", predictorMat
   
   # determine m
   m <- length(unique(imps)) - 1
-  cat("Setup vars\n")
+  # cat("Setup vars\n")
   # use mice to get info on data
   if (is.null(where)) where <- is.na(data)
   ini <- mice(data,
@@ -107,7 +107,7 @@ as.mids <- function(long, where = NULL, .imp = ".imp", .id = ".id", predictorMat
               remove.collinear = FALSE, allow.na = TRUE,
               predictorMatrix = predictorMatrix
   )
-  cat("mice\n")
+  # cat("mice\n")
   # create default .id when .id using type from input data
   # otherwise store provided .id as row names
   if (!.id %in% names(long)) {

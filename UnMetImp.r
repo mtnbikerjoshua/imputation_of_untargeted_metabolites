@@ -176,6 +176,7 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
                  covars=NULL, fileoutname = NULL , use_covars = FALSE , logScale = TRUE , covars_only_mode = FALSE , maxN_input = 10) {
     require(mice)
     require(dplyr)
+    require(miceadds)
     
     #' UnMetImp: main function to impute the metabolites
     #'
@@ -324,18 +325,52 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
             cat("allmids done\n")
             micelog <- do.call(rbind , lapply(allmice, '[[', "micelog"))
             cat("micelog done\n")
-            predmat <- do.call(rbind , lapply(allmice, '[[', "predrow"))
-
+            # predmat <- do.call(rbind , lapply(allmice, '[[', "predrow"))
+            # 
+            # if (logScale) {
+            # allmids <- cbind(firstmids , exp(as.data.frame(do.call(cbind,lapply(colnames(allmids),
+            #                                                                     FUN =  unscale, d = allmids)))) )
+            # } else {allmids <- cbind(firstmids , allmids) }
+            # micelog <- rbind(firstmicelog , micelog)
+            # predmat <- rbind(firstpredrow, predmat)
+            # ccmpred <- matrix(0, nrow = ncol(DataFrame) - nrow(predmat), ncol = ncol(predmat))
+            # rownames(ccmpred) <- setdiff(colnames(DataFrame), rownames(predmat))
+            # colnames(ccmpred) <- colnames(predmat)
+            # predmat <- rbind(predmat, ccmpred)[colnames(predmat),]
+            
+            # Step 1: Efficiently bind predrows
+            predrow_list <- lapply(allmice, `[[`, "predrow")
+            predmat <- do.call(rbind, predrow_list)
+            
+            # Step 2: Transform allmids based on log scale
             if (logScale) {
-            allmids <- cbind(firstmids , exp(as.data.frame(do.call(cbind,lapply(colnames(allmids),
-                                                                                FUN =  unscale, d = allmids)))) )
-            } else {allmids <- cbind(firstmids , allmids) }
-            micelog <- rbind(firstmicelog , micelog)
+              unscaled_list <- lapply(colnames(allmids), FUN = unscale, d = allmids)
+              unscaled_df <- as.data.frame(do.call(cbind, unscaled_list))
+              allmids <- cbind(firstmids, exp(unscaled_df))
+            } else {
+              allmids <- cbind(firstmids, allmids)
+            }
+            
+            # Step 3: Merge micelog
+            micelog <- rbind(firstmicelog, micelog)
+            
+            # Step 4: Add firstpredrow to predmat
             predmat <- rbind(firstpredrow, predmat)
-            ccmpred <- matrix(0, nrow = ncol(DataFrame) - nrow(predmat), ncol = ncol(predmat))
-            rownames(ccmpred) <- setdiff(colnames(DataFrame), rownames(predmat))
-            colnames(ccmpred) <- colnames(predmat)
-            predmat <- rbind(predmat, ccmpred)[colnames(predmat),]
+            
+            # Step 5: Construct missing rows for predictors not in predmat
+            missing_preds <- setdiff(colnames(DataFrame), rownames(predmat))
+            ccmpred <- matrix(0, 
+                              nrow = length(missing_preds), 
+                              ncol = ncol(predmat),
+                              dimnames = list(missing_preds, colnames(predmat)))
+            
+            # Step 6: Row-bind without subsetting inside the call
+            predmat <- rbind(predmat, ccmpred)
+            
+            # Step 7: Reorder to match DataFrame column order
+            predmat <- predmat[colnames(DataFrame), , drop = FALSE]
+            
+            cat("Unscale complete\n")
             cat("Unscale complete\n")
         }    
         #only used if there is one variable with missing values
@@ -375,7 +410,6 @@ UnMetImp <- function(DataFrame , imp_type = 'mice' , number_m = 5 , group1 , gro
         
         #convert allmids to a "mids" object, the object format required by the mice package to run the analysis
         if(exists("predmat")) {
-          source("as.mids.R")
           pred_cols <- intersect(colnames(predmat), colnames(allmids))
           predmat <- predmat[pred_cols, pred_cols]
           allmids <- as.mids(allmids, predictorMatrix = predmat)
